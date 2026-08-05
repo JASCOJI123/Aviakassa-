@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aviakassa — Admin panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0A1120;--surface:#111C31;--board:#0D1626;--edge:#1F2E4A;--amber:#F5A623;--teal:#2DD4BF;--text:#E8ECF4;--dim:#7C8AA5;--faint:#4A5875;--danger:#E8564A;}
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; padding:20px 16px 60px;}
+  h1{font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:28px; margin:0 0 4px;}
+  h1 span{color:var(--amber);}
+  .sub{color:var(--dim); font-size:13px; margin:0 0 20px;}
+  .login{max-width:340px; margin:80px auto; text-align:center;}
+  .login input{width:100%; padding:12px; border-radius:10px; border:1px solid var(--edge); background:var(--board); color:var(--text); font-size:14px; margin:14px 0;}
+  .login button, .btn{padding:12px 18px; border-radius:10px; border:none; background:var(--amber); color:#1A1200; font-weight:700; cursor:pointer;}
+  .hidden{display:none;}
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:20px;}
+  .stat-card{background:var(--surface); border:1px solid var(--edge); border-radius:12px; padding:14px;}
+  .stat-num{font-family:'JetBrains Mono',monospace; font-size:22px; color:var(--amber); font-weight:700;}
+  .stat-label{font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:1px; margin-top:4px;}
+  .filters{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+  .filters select, .filters input{background:var(--board); border:1px solid var(--edge); color:var(--text); padding:8px 10px; border-radius:8px; font-size:12.5px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th{text-align:left; color:var(--faint); font-size:10.5px; text-transform:uppercase; letter-spacing:1px; padding:8px 10px; border-bottom:1px solid var(--edge);}
+  td{padding:10px; border-bottom:1px solid var(--edge); vertical-align:top;}
+  .status-pill{padding:4px 9px; border-radius:999px; background:var(--board); border:1px solid var(--edge); font-size:11px; white-space:nowrap;}
+  .top-routes{display:flex; flex-direction:column; gap:6px; margin-bottom:20px;}
+  .route-row{display:flex; justify-content:space-between; background:var(--surface); border:1px solid var(--edge); padding:9px 12px; border-radius:8px; font-size:12.5px;}
+  .error{color:var(--danger); font-size:13px; margin-top:8px;}
+</style>
+</head>
+<body>
+
+<div class="login" id="loginBox">
+  <h1>AVIA<span>KASSA</span></h1>
+  <p class="sub">Admin panel</p>
+  <input type="password" id="passInput" placeholder="Parolni kiriting">
+  <button onclick="login()">Kirish</button>
+  <div class="error" id="loginError"></div>
+</div>
+
+<div id="dashboard" class="hidden">
+  <h1>AVIA<span>KASSA</span> — Admin</h1>
+  <p class="sub">Buyurtmalar va statistika</p>
+
+  <div class="stats" id="statsGrid"></div>
+
+  <div class="top-routes" id="topRoutes"></div>
+
+  <div class="filters">
+    <select id="fStatus">
+      <option value="">Holat: barchasi</option>
+      <option value="pending">🟡 Ko'rib chiqilmoqda</option>
+      <option value="contacted">🔵 Operator bog'landi</option>
+      <option value="found">🟢 Chipta tayyor</option>
+      <option value="cancelled">🔴 Bekor qilindi</option>
+    </select>
+    <input type="text" id="fPhone" placeholder="Telefon bo'yicha qidirish">
+    <input type="text" id="fCity" placeholder="Shahar bo'yicha (Toshkent...)">
+    <button class="btn" onclick="loadOrders()">Filtrlash</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Mijoz</th><th>Yo'nalish</th><th>Sana</th><th>Yo'lovchi</th><th>Klass</th><th>Holat</th></tr>
+    </thead>
+    <tbody id="ordersBody"></tbody>
+  </table>
+</div>
+
+<script>
+  let password = localStorage.getItem('aviakassa_admin_pass') || '';
+
+  function login(){
+    password = document.getElementById('passInput').value;
+    checkAndLoad();
+  }
+
+  async function checkAndLoad(){
+    const res = await fetch('/api/admin/stats?password=' + encodeURIComponent(password));
+    if (res.status === 401) {
+      document.getElementById('loginError').textContent = 'Parol noto\'g\'ri.';
+      return;
+    }
+    localStorage.setItem('aviakassa_admin_pass', password);
+    document.getElementById('loginBox').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    const stats = await res.json();
+    renderStats(stats);
+    loadOrders();
+  }
+
+  function renderStats(s){
+    const statusLabels = { pending:'🟡 Ko\'rib chiqilmoqda', contacted:'🔵 Bog\'landi', found:'🟢 Topildi', cancelled:'🔴 Bekor' };
+    const cards = [
+      { num: s.totalOrders, label: 'Jami buyurtma' },
+      { num: s.dailyCount, label: 'Bugungi' },
+      { num: s.monthlyCount, label: 'Shu oy' },
+      { num: s.uniqueCustomers, label: 'Mijozlar' }
+    ];
+    document.getElementById('statsGrid').innerHTML = cards.map(c =>
+      `<div class="stat-card"><div class="stat-num">${c.num}</div><div class="stat-label">${c.label}</div></div>`
+    ).join('');
+
+    document.getElementById('topRoutes').innerHTML =
+      '<div class="stat-label" style="margin-bottom:4px;">ENG KO\'P YO\'NALISHLAR</div>' +
+      (s.topRoutes.length ? s.topRoutes.map(r => `<div class="route-row"><span>${r.route}</span><span>${r.count}</span></div>`).join('') : '<div class="route-row"><span>Ma\'lumot yo\'q</span></div>');
+  }
+
+  async function loadOrders(){
+    const params = new URLSearchParams({ password });
+    const status = document.getElementById('fStatus').value;
+    const phone = document.getElementById('fPhone').value;
+    const city = document.getElementById('fCity').value;
+    if (status) params.set('status', status);
+    if (phone) params.set('phone', phone);
+    if (city) params.set('city', city);
+
+    const res = await fetch('/api/admin/orders?' + params.toString());
+    const data = await res.json();
+    const tbody = document.getElementById('ordersBody');
+    if (!data.orders || !data.orders.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--faint); padding:20px;">Buyurtmalar topilmadi</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.orders.map(o => `
+      <tr>
+        <td>#${o.id}</td>
+        <td>${o.firstName || '-'}<br><span style="color:var(--faint)">${o.phone || '-'}</span></td>
+        <td>${o.from} → ${o.to}</td>
+        <td>${o.departDate}${o.returnDate ? '<br>' + o.returnDate : ''}</td>
+        <td>${(o.passengers && o.passengers.adults) || 1}+${(o.passengers && o.passengers.children) || 0}+${(o.passengers && o.passengers.infants) || 0}</td>
+        <td>${o.travelClass}</td>
+        <td><span class="status-pill">${o.statusLabel}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  if (password) checkAndLoad();
+</script>
+</body>
+</html>
