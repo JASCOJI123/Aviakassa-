@@ -26,6 +26,21 @@ function formatPassengers(p) {
   return parts.length ? parts.join(', ') : '1 katta';
 }
 
+function formatBudget(b) {
+  if (!b) return null;
+  const cur = b.currency === 'USD' ? '$' : "so'm";
+  if (b.min && b.max) return `${b.min.toLocaleString()}–${b.max.toLocaleString()} ${cur}`;
+  if (b.max) return `${b.max.toLocaleString()} ${cur} gacha`;
+  if (b.min) return `${b.min.toLocaleString()} ${cur} dan`;
+  return null;
+}
+
+const TIME_LABELS = { morning: 'Ertalab', afternoon: 'Kunduzi', evening: 'Kechqurun' };
+function formatFlightTime(prefs) {
+  if (!prefs || !prefs.length) return "Farqi yo'q";
+  return prefs.map((t) => TIME_LABELS[t] || t).join(', ');
+}
+
 function formatOrderMessage(order) {
   const lines = [
     '🆕 Yangi buyurtma',
@@ -42,8 +57,14 @@ function formatOrderMessage(order) {
     '',
     `👨 Yo'lovchilar: ${formatPassengers(order.passengers)}`,
     `💺 Klass: ${classLabel(order.travelClass)}`,
+    `🧳 Bagaj: ${order.baggage === 'without' ? 'Bagajsiz' : 'Bagaj bilan'}`,
+    `⏰ Parvoz vaqti: ${formatFlightTime(order.flightTimePrefs)}`,
     ''
   ];
+  const budgetLine = formatBudget(order.budget);
+  if (budgetLine) {
+    lines.splice(lines.length - 1, 0, `💰 Byudjet: ${budgetLine}`, '');
+  }
   if (order.comment) {
     lines.push(`📝 Izoh: ${order.comment}`, '');
   }

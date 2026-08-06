@@ -3,9 +3,9 @@ const db = require('../lib/db');
 const { verifyInitData } = require('../lib/telegramAuth');
 const { notifyOperators, STATUS_LABELS } = require('../bot');
 
-const CITIES_FROM = ['Toshkent', 'Samarqand', 'Buxoro', 'Moskva', 'Istanbul'];
-const CITIES_TO = ['Istanbul', 'Dubay', 'Seul', 'Moskva'];
 const CLASSES = ['Economy', 'Premium Economy', 'Business', 'First'];
+const BAGGAGE_OPTIONS = ['with', 'without'];
+const TIME_OPTIONS = ['morning', 'afternoon', 'evening'];
 
 function buildRouter({ bot, botToken, operatorChatIds }) {
   const router = express.Router();
@@ -15,7 +15,7 @@ function buildRouter({ bot, botToken, operatorChatIds }) {
     try {
       const {
         initData, from, to, tripType, departDate, returnDate,
-        passengers, travelClass, comment
+        passengers, travelClass, baggage, budget, flightTime, comment
       } = req.body || {};
 
       const { valid, user } = verifyInitData(initData, botToken);
@@ -23,11 +23,11 @@ function buildRouter({ bot, botToken, operatorChatIds }) {
         return res.status(401).json({ error: 'Telegram autentifikatsiyasi muvaffaqiyatsiz.' });
       }
 
-      if (!from || !to || from === to) {
+      if (!from || !to || typeof from !== 'string' || typeof to !== 'string' || from === to) {
         return res.status(400).json({ error: 'Yo\'nalish noto\'g\'ri.' });
       }
-      if (!CITIES_FROM.includes(from) && !CITIES_TO.includes(from)) {
-        return res.status(400).json({ error: 'Noma\'lum shahar (qayerdan).' });
+      if (from.length > 120 || to.length > 120) {
+        return res.status(400).json({ error: 'Yo\'nalish nomi juda uzun.' });
       }
       if (!departDate) {
         return res.status(400).json({ error: 'Ketish sanasi kiritilmagan.' });
@@ -63,6 +63,15 @@ function buildRouter({ bot, botToken, operatorChatIds }) {
           infants: Number(passengers?.infants) || 0
         },
         travelClass: CLASSES.includes(travelClass) ? travelClass : 'Economy',
+        baggage: BAGGAGE_OPTIONS.includes(baggage) ? baggage : 'with',
+        budget: (budget && (budget.min || budget.max)) ? {
+          min: Number.isFinite(Number(budget.min)) && budget.min !== null ? Number(budget.min) : null,
+          max: Number.isFinite(Number(budget.max)) && budget.max !== null ? Number(budget.max) : null,
+          currency: budget.currency === 'USD' ? 'USD' : 'UZS'
+        } : null,
+        flightTime: Array.isArray(flightTime)
+          ? flightTime.filter((t) => TIME_OPTIONS.includes(t)).slice(0, 4)
+          : [],
         comment: (comment || '').slice(0, 500)
       });
 
@@ -92,6 +101,9 @@ function buildRouter({ bot, botToken, operatorChatIds }) {
         departDate: o.departDate,
         returnDate: o.returnDate,
         travelClass: o.travelClass,
+        baggage: o.baggage,
+        budget: o.budget,
+        flightTimePrefs: o.flightTimePrefs,
         status: o.status,
         statusLabel: STATUS_LABELS[o.status] || o.status,
         createdAt: o.createdAt

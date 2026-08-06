@@ -64,7 +64,7 @@
 
   <table>
     <thead>
-      <tr><th>ID</th><th>Mijoz</th><th>Yo'nalish</th><th>Sana</th><th>Yo'lovchi</th><th>Klass</th><th>Holat</th></tr>
+      <tr><th>ID</th><th>Mijoz</th><th>Yo'nalish</th><th>Sana</th><th>Yo'lovchi</th><th>Klass</th><th>Bagaj</th><th>Holat</th></tr>
     </thead>
     <tbody id="ordersBody"></tbody>
   </table>
@@ -133,6 +133,7 @@
         <td>${o.departDate}${o.returnDate ? '<br>' + o.returnDate : ''}</td>
         <td>${(o.passengers && o.passengers.adults) || 1}+${(o.passengers && o.passengers.children) || 0}+${(o.passengers && o.passengers.infants) || 0}</td>
         <td>${o.travelClass}</td>
+        <td>${o.baggage === 'without' ? 'Bagajsiz' : 'Bor'}</td>
         <td><span class="status-pill">${o.statusLabel}</span></td>
       </tr>
     `).join('');
