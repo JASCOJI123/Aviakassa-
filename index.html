@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Aviakassa — Chipta so'rovi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A1120; --surface:#111C31; --surface-raised:#16233C; --board:#0D1626;
+    --flap-edge:#1F2E4A; --amber:#F5A623; --teal:#2DD4BF; --text:#E8ECF4;
+    --text-dim:#7C8AA5; --text-faint:#4A5875; --danger:#E8564A; --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; padding-bottom:40px; overflow-x:hidden;}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}}
+
+  .header{position:relative; padding:26px 20px 22px; overflow:hidden;
+    background:radial-gradient(ellipse 120% 100% at 50% -20%, #16233C 0%, var(--bg) 70%);
+    border-bottom:1px solid var(--flap-edge);}
+  .radar{position:absolute; top:-90px; right:-90px; width:220px; height:220px; border-radius:50%;
+    background:conic-gradient(from 0deg, transparent 0deg, rgba(45,212,191,0.14) 40deg, transparent 90deg);
+    animation:spin 6s linear infinite; pointer-events:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .eyebrow{font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:3px; color:var(--teal);
+    text-transform:uppercase; margin:0 0 6px; position:relative; z-index:1;}
+  .brand{font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:36px; letter-spacing:1px;
+    margin:0; line-height:0.95; color:var(--text); position:relative; z-index:1;}
+  .brand span{color:var(--amber);}
+  .tagline{color:var(--text-dim); font-size:13px; margin:8px 0 0; position:relative; z-index:1;}
+
+  .tabs{display:flex; gap:6px; margin-top:18px; position:relative; z-index:1;}
+  .tab{flex:1; text-align:center; padding:10px 6px; border-radius:10px; font-size:13px; font-weight:600;
+    cursor:pointer; color:var(--text-dim); background:var(--surface); border:1px solid var(--flap-edge);}
+  .tab.active{background:var(--amber); color:#1A1200; border-color:var(--amber);}
+
+  .wrap{padding:20px 16px 0; max-width:520px; margin:0 auto;}
+  .screen{display:none;}
+  .screen.active{display:block;}
+  .card{background:var(--surface); border:1px solid var(--flap-edge); border-radius:var(--radius); padding:18px; margin-bottom:14px;}
+  .card-label{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:2px; text-transform:uppercase; color:var(--text-faint); margin:0 0 12px;}
+
+  .route{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px;}
+  .flap-field label{display:block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--text-faint); margin-bottom:6px; text-transform:uppercase;}
+  .flap-display{position:relative; background:var(--board); border:1px solid var(--flap-edge); border-radius:10px; padding:14px 10px; min-height:52px; display:flex; align-items:center; overflow:hidden; perspective:400px;}
+  .flap-display::after{content:''; position:absolute; left:0; right:0; top:50%; height:1px; background:rgba(0,0,0,0.4); z-index:2;}
+  .flap-text{font-family:'Big Shoulders Display',sans-serif; font-weight:700; font-size:19px; letter-spacing:0.5px; color:var(--amber); text-transform:uppercase; display:inline-block;}
+  .flap-text.placeholder{color:var(--text-faint); font-family:'Inter',sans-serif; font-weight:500; font-size:14px; text-transform:none;}
+  .flap-flip{animation:flip 0.36s ease;}
+  @keyframes flip{0%{transform:rotateX(0deg);}50%{transform:rotateX(-90deg);}51%{transform:rotateX(90deg);}100%{transform:rotateX(0deg);}}
+  .flap-select{position:absolute; inset:0; width:100%; height:100%; opacity:0; border:none; appearance:none; cursor:pointer;}
+  .swap-btn{width:40px; height:40px; border-radius:50%; background:var(--surface-raised); border:1px solid var(--flap-edge); color:var(--teal); font-size:17px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform 0.25s ease, background 0.2s; margin-top:18px;}
+  .swap-btn:active{transform:rotate(180deg) scale(0.9); background:var(--surface);}
+
+  .segmented{display:flex; background:var(--board); border:1px solid var(--flap-edge); border-radius:10px; padding:3px; gap:3px;}
+  .segmented button{flex:1; border:none; background:transparent; color:var(--text-dim); font-family:'Inter',sans-serif; font-weight:600; font-size:13px; padding:10px 6px; border-radius:8px; cursor:pointer; transition:all 0.2s;}
+  .segmented button.active{background:var(--amber); color:#1A1200;}
+
+  .dates{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  .date-field label{display:block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1.5px; color:var(--text-faint); margin-bottom:6px; text-transform:uppercase;}
+  .date-field input{width:100%; background:var(--board); border:1px solid var(--flap-edge); border-radius:10px; padding:12px 10px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:13.5px;}
+  .date-field.disabled{opacity:0.35; pointer-events:none;}
+  .date-field input::-webkit-calendar-picker-indicator{filter:invert(0.7) sepia(1) saturate(4) hue-rotate(0deg);}
+
+  .pax-row{display:flex; align-items:center; justify-content:space-between; padding:11px 2px; border-bottom:1px solid var(--flap-edge);}
+  .pax-row:last-child{border-bottom:none;}
+  .pax-name{font-size:14.5px; font-weight:500;}
+  .pax-sub{font-size:11.5px; color:var(--text-faint); margin-top:1px;}
+  .pax-ctrl{display:flex; align-items:center; gap:14px;}
+  .pax-btn{width:30px; height:30px; border-radius:50%; border:1px solid var(--flap-edge); background:var(--board); color:var(--amber); font-size:17px; line-height:1; display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none;}
+  .pax-btn:active{background:var(--surface-raised);}
+  .pax-count{font-family:'JetBrains Mono',monospace; font-size:15px; min-width:18px; text-align:center;}
+
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{padding:9px 14px; border-radius:999px; border:1px solid var(--flap-edge); background:var(--board); color:var(--text-dim); font-size:13px; font-weight:500; cursor:pointer; transition:all 0.15s;}
+  .chip.active{background:var(--amber); border-color:var(--amber); color:#1A1200; font-weight:700;}
+
+  textarea{width:100%; background:var(--board); border:1px solid var(--flap-edge); border-radius:10px; padding:12px; color:var(--text); font-family:'Inter',sans-serif; font-size:13.5px; resize:none; min-height:70px;}
+  textarea::placeholder{color:var(--text-faint);}
+
+  .submit-btn{width:100%; padding:16px; border:none; border-radius:14px; background:linear-gradient(135deg,#F5A623,#E08A0F); color:#1A1200; font-family:'Big Shoulders Display',sans-serif; font-weight:800; font-size:17px; letter-spacing:0.5px; cursor:pointer; margin-top:6px; margin-bottom:4px; box-shadow:0 8px 24px rgba(245,166,35,0.25);}
+  .submit-btn:active{transform:scale(0.98);}
+  .submit-btn:disabled{opacity:0.6;}
+  .hint{text-align:center; font-size:11.5px; color:var(--text-faint); margin-top:10px;}
+
+  .toast{position:fixed; left:16px; right:16px; bottom:24px; background:var(--surface-raised); border:1px solid var(--teal); border-radius:12px; padding:14px 16px; display:flex; gap:10px; align-items:center; transform:translateY(120%); transition:transform 0.35s ease; z-index:50; max-width:520px; margin:0 auto;}
+  .toast.error{border-color:var(--danger);}
+  .toast.show{transform:translateY(0);}
+  .toast-dot{width:8px; height:8px; border-radius:50%; background:var(--teal); flex-shrink:0;}
+  .toast.error .toast-dot{background:var(--danger);}
+  .toast-text{font-size:13px; color:var(--text);}
+  .toast-id{font-family:'JetBrains Mono',monospace; color:var(--teal);}
+
+  .order-item{background:var(--surface); border:1px solid var(--flap-edge); border-radius:12px; padding:14px; margin-bottom:10px;}
+  .order-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .order-route{font-family:'Big Shoulders Display',sans-serif; font-weight:700; font-size:16px;}
+  .order-id{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-faint);}
+  .order-meta{font-size:12px; color:var(--text-dim); margin-bottom:8px;}
+  .order-status{display:inline-block; font-size:12px; font-weight:600; padding:5px 10px; border-radius:999px; background:var(--board); border:1px solid var(--flap-edge);}
+  .empty-state{text-align:center; padding:40px 16px; color:var(--text-faint);}
+  .empty-state .icon{font-size:34px; margin-bottom:10px;}
+  .spinner{width:22px; height:22px; border:2px solid var(--flap-edge); border-top-color:var(--amber); border-radius:50%; animation:spin 0.7s linear infinite; margin:30px auto;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="radar"></div>
+  <p class="eyebrow">SO'ROV FORMASI</p>
+  <h1 class="brand">AVIA<span>KASSA</span></h1>
+  <p class="tagline">Yo'nalishni belgilang — operator sizga eng mos chiptalarni topadi</p>
+  <div class="tabs">
+    <div class="tab active" id="tabNew">✈️ Yangi so'rov</div>
+    <div class="tab" id="tabMine">📋 Mening so'rovlarim</div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===== SCREEN: NEW REQUEST ===== -->
+  <div class="screen active" id="screenNew">
+
+    <div class="card">
+      <p class="card-label">Yo'nalish</p>
+      <div class="route">
+        <div class="flap-field">
+          <label>Qayerdan</label>
+          <div class="flap-display">
+            <span class="flap-text placeholder" id="fromText">Tanlang</span>
+            <select class="flap-select" id="fromSelect">
+              <option value="" disabled selected>Tanlang</option>
+              <option>Toshkent</option><option>Samarqand</option><option>Buxoro</option>
+              <option>Moskva</option><option>Istanbul</option>
+            </select>
+          </div>
+        </div>
+        <div class="swap-btn" id="swapBtn">⇅</div>
+        <div class="flap-field">
+          <label>Qayerga</label>
+          <div class="flap-display">
+            <span class="flap-text placeholder" id="toText">Tanlang</span>
+            <select class="flap-select" id="toSelect">
+              <option value="" disabled selected>Tanlang</option>
+              <option>Istanbul</option><option>Dubay</option><option>Seul</option><option>Moskva</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-label">Sana</p>
+      <div class="segmented">
+        <button type="button" class="active" id="oneWayBtn">Bir tomonga</button>
+        <button type="button" id="roundTripBtn">Ikki tomonga</button>
+      </div>
+      <div class="dates">
+        <div class="date-field"><label>Ketish</label><input type="date" id="departDate"></div>
+        <div class="date-field disabled" id="returnField"><label>Qaytish</label><input type="date" id="returnDate"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-label">Yo'lovchilar</p>
+      <div class="pax-row">
+        <div><div class="pax-name">Kattalar</div><div class="pax-sub">12 yoshdan katta</div></div>
+        <div class="pax-ctrl"><div class="pax-btn" data-pax="adults" data-op="-">−</div><span class="pax-count" id="adultsCount">1</span><div class="pax-btn" data-pax="adults" data-op="+">+</div></div>
+      </div>
+      <div class="pax-row">
+        <div><div class="pax-name">Bolalar</div><div class="pax-sub">2–11 yosh</div></div>
+        <div class="pax-ctrl"><div class="pax-btn" data-pax="children" data-op="-">−</div><span class="pax-count" id="childrenCount">0</span><div class="pax-btn" data-pax="children" data-op="+">+</div></div>
+      </div>
+      <div class="pax-row">
+        <div><div class="pax-name">Chaqaloqlar</div><div class="pax-sub">2 yoshgacha</div></div>
+        <div class="pax-ctrl"><div class="pax-btn" data-pax="infants" data-op="-">−</div><span class="pax-count" id="infantsCount">0</span><div class="pax-btn" data-pax="infants" data-op="+">+</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-label">Klass</p>
+      <div class="chips" id="classChips">
+        <div class="chip active" data-class="Economy">Economy</div>
+        <div class="chip" data-class="Premium Economy">Premium Economy</div>
+        <div class="chip" data-class="Business">Business</div>
+        <div class="chip" data-class="First">First</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-label">Qo'shimcha izoh</p>
+      <textarea id="comment" placeholder="Masalan: faqat Turkish Airlines, kechki reys kerak..."></textarea>
+    </div>
+
+    <button class="submit-btn" id="submitBtn">🔍 SO'ROV YUBORISH</button>
+    <p class="hint">So'rov operatorga yuboriladi, tez orada siz bilan bog'lanadi</p>
+  </div>
+
+  <!-- ===== SCREEN: MY ORDERS ===== -->
+  <div class="screen" id="screenMine">
+    <div id="ordersList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">
+  <div class="toast-dot"></div>
+  <div class="toast-text" id="toastText">So'rov qabul qilindi — <span class="toast-id" id="toastId">#00000</span></div>
+</div>
+
+<script>
+  const tg = window.Telegram ? window.Telegram.WebApp : null;
+  if (tg) { tg.ready(); tg.expand(); }
+  const initData = tg ? tg.initData : '';
+
+  function showToast(text, isError){
+    const toast = document.getElementById('toast');
+    document.getElementById('toastText').innerHTML = text;
+    toast.classList.toggle('error', !!isError);
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  // ---- Tabs ----
+  const tabNew = document.getElementById('tabNew');
+  const tabMine = document.getElementById('tabMine');
+  const screenNew = document.getElementById('screenNew');
+  const screenMine = document.getElementById('screenMine');
+  tabNew.addEventListener('click', () => {
+    tabNew.classList.add('active'); tabMine.classList.remove('active');
+    screenNew.classList.add('active'); screenMine.classList.remove('active');
+  });
+  tabMine.addEventListener('click', () => {
+    tabMine.classList.add('active'); tabNew.classList.remove('active');
+    screenMine.classList.add('active'); screenNew.classList.remove('active');
+    loadMyOrders();
+  });
+
+  async function loadMyOrders(){
+    const list = document.getElementById('ordersList');
+    list.innerHTML = '<div class="spinner"></div>';
+    if (!initData) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">📡</div>Bu bo\'lim faqat Telegram ilovasi ichida ishlaydi.</div>';
+      return;
+    }
+    try {
+      const res = await fetch('/api/orders?initData=' + encodeURIComponent(initData));
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Xatolik');
+      if (!data.orders.length) {
+        list.innerHTML = '<div class="empty-state"><div class="icon">🧳</div>Hali so\'rovlar yo\'q.<br>Yangi so\'rov yuboring — u shu yerda ko\'rinadi.</div>';
+        return;
+      }
+      list.innerHTML = data.orders.map(o => `
+        <div class="order-item">
+          <div class="order-top">
+            <span class="order-route">${o.from} → ${o.to}</span>
+            <span class="order-id">#${o.id}</span>
+          </div>
+          <div class="order-meta">📅 ${o.departDate}${o.returnDate ? ' — ' + o.returnDate : ''} · 💺 ${o.travelClass}</div>
+          <span class="order-status">${o.statusLabel}</span>
+        </div>
+      `).join('');
+    } catch (e) {
+      list.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Yuklab bo\'lmadi. Qaytadan urinib ko\'ring.</div>';
+    }
+  }
+
+  // ---- Route flap logic ----
+  function wireFlap(selectEl, textEl){
+    selectEl.addEventListener('change', () => {
+      textEl.classList.add('flap-flip');
+      setTimeout(() => { textEl.textContent = selectEl.value; textEl.classList.remove('placeholder'); }, 175);
+      setTimeout(() => textEl.classList.remove('flap-flip'), 360);
+    });
+  }
+  const fromSelect = document.getElementById('fromSelect');
+  const toSelect = document.getElementById('toSelect');
+  const fromText = document.getElementById('fromText');
+  const toText = document.getElementById('toText');
+  wireFlap(fromSelect, fromText);
+  wireFlap(toSelect, toText);
+
+  document.getElementById('swapBtn').addEventListener('click', () => {
+    const fv = fromSelect.value, tv = toSelect.value;
+    if (!fv && !tv) return;
+    [fromText, toText].forEach(el => el.classList.add('flap-flip'));
+    setTimeout(() => {
+      if (tv) { fromText.textContent = tv; fromText.classList.remove('placeholder'); fromSelect.value = tv; }
+      if (fv) { toText.textContent = fv; toText.classList.remove('placeholder'); toSelect.value = fv; }
+    }, 175);
+    setTimeout(() => [fromText, toText].forEach(el => el.classList.remove('flap-flip')), 360);
+  });
+
+  // ---- Trip type ----
+  const oneWayBtn = document.getElementById('oneWayBtn');
+  const roundTripBtn = document.getElementById('roundTripBtn');
+  const returnField = document.getElementById('returnField');
+  let tripType = 'oneWay';
+  oneWayBtn.addEventListener('click', () => {
+    tripType = 'oneWay'; oneWayBtn.classList.add('active'); roundTripBtn.classList.remove('active'); returnField.classList.add('disabled');
+  });
+  roundTripBtn.addEventListener('click', () => {
+    tripType = 'roundTrip'; roundTripBtn.classList.add('active'); oneWayBtn.classList.remove('active'); returnField.classList.remove('disabled');
+  });
+
+  // ---- Passengers ----
+  const paxCounts = { adults: 1, children: 0, infants: 0 };
+  const paxLimits = { adults: [1, 9], children: [0, 9], infants: [0, 9] };
+  document.querySelectorAll('.pax-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.pax, op = btn.dataset.op;
+      const [min, max] = paxLimits[key];
+      if (op === '+' && paxCounts[key] < max) paxCounts[key]++;
+      if (op === '-' && paxCounts[key] > min) paxCounts[key]--;
+      document.getElementById(key + 'Count').textContent = paxCounts[key];
+    });
+  });
+
+  // ---- Class ----
+  let selectedClass = 'Economy';
+  document.querySelectorAll('#classChips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#classChips .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      selectedClass = chip.dataset.class;
+    });
+  });
+
+  // ---- Submit ----
+  function shake(el){
+    el.style.borderColor = '#E8564A';
+    let n = 0;
+    const iv = setInterval(() => {
+      el.style.transform = n % 2 === 0 ? 'translateX(-4px)' : 'translateX(4px)';
+      n++;
+      if (n > 4) { clearInterval(iv); el.style.transform = ''; el.style.borderColor = ''; }
+    }, 80);
+  }
+
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.addEventListener('click', async () => {
+    const from = fromSelect.value, to = toSelect.value;
+    const depart = document.getElementById('departDate').value;
+    const ret = document.getElementById('returnDate').value;
+
+    if (!from) { shake(document.querySelectorAll('.flap-display')[0]); return; }
+    if (!to) { shake(document.querySelectorAll('.flap-display')[1]); return; }
+    if (from === to) { shake(document.querySelectorAll('.flap-display')[1]); return; }
+    if (!depart) { shake(document.getElementById('departDate')); return; }
+    if (tripType === 'roundTrip' && !ret) { shake(document.getElementById('returnDate')); return; }
+
+    if (!initData) {
+      showToast('Bu forma faqat Telegram ilovasi ichida ishlaydi.', true);
+      return;
+    }
+
+    const payload = {
+      initData, from, to, tripType, departDate: depart,
+      returnDate: tripType === 'roundTrip' ? ret : null,
+      passengers: { ...paxCounts }, travelClass: selectedClass,
+      comment: document.getElementById('comment').value.trim()
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'YUBORILMOQDA...';
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Xatolik yuz berdi');
+
+      showToast('So\'rov qabul qilindi — <span class="toast-id">#' + data.orderId + '</span>');
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      setTimeout(() => { if (tg) tg.close(); }, 1800);
+    } catch (e) {
+      showToast(e.message || 'Xatolik yuz berdi, qaytadan urinib ko\'ring.', true);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🔍 SO\'ROV YUBORISH';
+    }
+  });
+</script>
+</body>
+</html>
